@@ -1,0 +1,58 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+export const prerender = true;
+---
+
+<BaseLayout
+	title="Privacy notice · waitinglists.dev"
+	description="How waitinglists.dev collects, uses, protects, and deletes waitlist email addresses."
+>
+	<header class="simple-header">
+		<div class="container"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a></div>
+	</header>
+	<main class="legal-page container">
+		<span class="eyebrow">Privacy notice</span>
+		<h1>A waitlist is not a profile.</h1>
+		<p class="legal-lead">This notice explains the waitlist processing operated through waitinglists.dev. It was last updated on 31 July 2026.</p>
+
+		<section>
+			<h2>Who controls the data</h2>
+			<p><strong>Replace this paragraph before deployment.</strong> Name your organization as the data controller, provide a monitored privacy contact, and explain which waitlists you operate. A connected website must also tell people the specific purpose of its waitlist when it asks them to join.</p>
+		</section>
+
+		<section>
+			<h2>What is collected</h2>
+			<p>We collect the email address you submit, the waitlist it belongs to, and limited system metadata needed to prove and manage consent: pending or confirmed status, consent-text version, request and confirmation times, and limited delivery status and diagnostic details for the confirmation message. When you confirm, we also store the approximate two-letter country code Cloudflare derives from your network connection. This may be inaccurate, including when you use a VPN. We do not ask for names, phone numbers, street addresses, or profiles. We do not store your IP address or browser details in D1.</p>
+			<p>Cloudflare necessarily processes network and security metadata when serving requests and delivering confirmation email. That infrastructure processing is governed by Cloudflare’s data protection terms.</p>
+		</section>
+
+		<section>
+			<h2>Why it is used</h2>
+			<p>We use the address only to record your requested place on the named waitlist and contact you about that waitlist or its launch. The legal basis is your consent. The confirmation message is a transactional email used to verify that the address owner made the request. No address becomes active until that confirmation is completed.</p>
+			<p>We use the approximate country to understand the geographic distribution of interest in each waitlist. The legal basis is our legitimate interest in measuring that distribution, balanced by retaining only a country code rather than the underlying IP address.</p>
+			<p>We do not sell the data, use it for behavioural advertising, or make automated decisions about you.</p>
+		</section>
+
+		<section>
+			<h2>Retention and deletion</h2>
+			<p>Unconfirmed requests expire after 24 hours and are deleted by the next daily cleanup. Confirmed records are kept until the relevant waitlist closes, you remove the record, or 24 months after confirmation—whichever comes first. Secure links in confirmation messages let you withdraw and permanently delete the record without creating an account.</p>
+		</section>
+
+		<section>
+			<h2>Processors and transfers</h2>
+			<p>Cloudflare provides the Worker, D1 database, security controls, and transactional email delivery as a processor. Cloudflare may process data through its global infrastructure. The contractual safeguards, including international-transfer terms, are described in the <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" rel="noreferrer">Cloudflare Data Processing Addendum</a>.</p>
+		</section>
+
+		<section>
+			<h2>Your rights</h2>
+			<p>Depending on your circumstances, you may request access, correction, erasure, restriction, or portability, object to processing, and withdraw consent at any time. Withdrawal does not affect processing that was lawful before withdrawal. Use the removal link in your confirmation email or contact <a href="mailto:privacy@your-domain.example">privacy@your-domain.example</a>. We may need to verify that you control the address. You may also complain to your local data protection authority.</p>
+		</section>
+
+		<section>
+			<h2>Browser storage, cookies, and security</h2>
+			<p>After a successful request on waitinglists.dev, the public page stores a non-identifying marker in your browser so it can say that you have already joined. The marker does not contain your email address and is not sent to our server. Public waitlist pages do not set cookies. The private admin area uses one strictly necessary, secure, HTTP-only session cookie. Access controls, rate limiting, hashed one-time tokens, and encrypted transport protect the service; no system can promise absolute security.</p>
+		</section>
+	</main>
+	<footer class="site-footer"><div class="container footer-inner"><a href="/">← Back home</a><span>privacy@your-domain.example</span></div></footer>
+</BaseLayout>

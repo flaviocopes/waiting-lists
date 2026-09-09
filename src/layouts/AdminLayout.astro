@@ -1,0 +1,27 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+	title: string;
+	description?: string;
+}
+
+const { title, description = 'Manage waiting lists and subscriber data.' } = Astro.props;
+---
+
+<BaseLayout title={`${title} · waitinglists.dev`} description={description} noindex bodyClass="admin-body">
+	<header class="admin-header">
+		<a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+		<div class="admin-header-actions">
+			<a class="button button-quiet button-small" href="/admin/settings">Settings</a>
+			<a class="button button-quiet button-small" href="/admin/agent">Agent access</a>
+			<form action="/admin/logout" method="post">
+				<input type="hidden" name="csrf" value={Astro.locals.csrfToken ?? ''} />
+				<button class="button button-quiet button-small" type="submit">Log out</button>
+			</form>
+		</div>
+	</header>
+	<main class="admin-main">
+		<slot />
+	</main>
+</BaseLayout>

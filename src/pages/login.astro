@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import * as auth from '../lib/auth';
+import { getBindings } from '../lib/runtime';
+import { verifyTurnstile } from '../lib/turnstile';
+
+export const prerender = false;
+
+const bindings = getBindings();
+const existingSession = await auth.getSession(bindings.DB, Astro.request, bindings.SESSION_SECRET);
+if (existingSession) return Astro.redirect('/admin');
+
+let error = '';
+const credentialsUpdated = Astro.url.searchParams.get('credentials_updated') === '1';
+if (Astro.request.method === 'POST') {
+	const origin = Astro.request.headers.get('origin');
+	if (origin && origin !== Astro.url.origin) {
+		return new Response('Forbidden', { status: 403 });
+	}
+
+	const clientKey = Astro.request.headers.get('cf-connecting-ip') ?? 'local';
+	const rate = await bindings.AUTH_RATE_LIMIT.limit({ key: `login:${clientKey}` });
+	if (!rate.success) {
+		error = 'Too many attempts. Wait a minute and try again.';
+		Astro.response.status = 429;
+	} else {
+		const form = await Astro.request.formData();
+		const username = String(form.get('username') ?? '').slice(0, 100);
+		const password = String(form.get('password') ?? '').slice(0, 300);
+		const turnstilePassed = await verifyTurnstile({
+			token: form.get('cf-turnstile-response'),
+			secret: bindings.TURNSTILE_SECRET,
+			expectedAction: 'login',
+			allowedHostnames: bindings.TURNSTILE_HOSTNAMES,
+			remoteIp: Astro.request.headers.get('cf-connecting-ip') ?? undefined,
+		});
+		if (!turnstilePassed) {
+			error = 'The security check failed. Please try again.';
+			Astro.response.status = 403;
+		} else if (await auth.verifyAdminCredentials(bindings, username, password)) {
+			return new Response(null, {
+				status: 303,
+				headers: {
+					Location: '/admin',
+					'Set-Cookie': (await auth.createSession(bindings.DB, bindings.SESSION_SECRET)).cookie,
+				},
+			});
+		} else {
+			error = 'The username or password is incorrect.';
+			Astro.response.status = 401;
+		}
+	}
+}
+---
+
+<BaseLayout title="Admin login · waitinglists.dev" description="Private waiting list administration." noindex>
+	<main class="auth-shell">
+		<section class="auth-brand">
+			<a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+			<div class="auth-message">
+				<span class="eyebrow">Private control room</span>
+				<h1>Your lists, away from the noise.</h1>
+				<p>Review signups, create endpoints, and take your data with you. This area is for the administrator only.</p>
+			</div>
+			<span class="mono">SECURE SESSION · 12H MAX</span>
+		</section>
+		<section class="auth-panel">
+			<form class="auth-form" method="post">
+				<h2>Welcome back.</h2>
+				<p>Sign in to manage your waiting lists.</p>
+				{credentialsUpdated && <div class="toast" role="status">Sign-in settings updated. Use your new credentials.</div>}
+				{error && <div class="form-error" role="alert">{error}</div>}
+				<div class="field">
+					<label for="username">Username</label>
+					<input id="username" name="username" autocomplete="username" maxlength="100" required autofocus />
+				</div>
+				<div class="field">
+					<label for="password">Password</label>
+					<input id="password" type="password" name="password" autocomplete="current-password" maxlength="300" required />
+				</div>
+				<div class="turnstile-field">
+					<div class="cf-turnstile" data-sitekey={bindings.TURNSTILE_SITE_KEY} data-action="login"></div>
+				</div>
+				<button class="button button-dark" type="submit">Sign in securely</button>
+			</form>
+		</section>
+	</main>
+	<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</BaseLayout>

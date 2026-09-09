@@ -1,0 +1,109 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getConfirmationCountry } from '../lib/country';
+import { confirmSubscriber, getGlobalSettings, getWaitingListById } from '../lib/db';
+import { sendAdminJoinNotification } from '../lib/email';
+import { getBindings } from '../lib/runtime';
+import { confirmationTokenCandidates, hashConfirmationToken, validConfirmationToken } from '../lib/subscriber-tokens';
+
+export const prerender = false;
+
+const bindings = getBindings();
+let token = Astro.url.searchParams.get('token') ?? '';
+let state: 'ready' | 'confirmed' | 'invalid' = validConfirmationToken(token) ? 'ready' : 'invalid';
+Astro.response.headers.set('Cache-Control', 'no-store');
+
+if (Astro.request.method === 'POST') {
+	// The one-time 256-bit token is the authorization for this action. There is
+	// no cookie or session authority here, so an Origin gate adds no CSRF
+	// protection and can reject legitimate posts behind a custom-domain proxy.
+	const form = await Astro.request.formData();
+	const formToken = form.get('token');
+	const queryToken = Astro.url.searchParams.get('token');
+	const candidates = confirmationTokenCandidates(formToken, queryToken);
+	const country = getConfirmationCountry(Astro.request);
+	token = candidates[0] ?? '';
+	state = 'invalid';
+	let confirmedSubscriber: Awaited<ReturnType<typeof confirmSubscriber>> = null;
+	for (const candidate of candidates) {
+		const tokenHash = await hashConfirmationToken(bindings.SUBSCRIBER_TOKEN_SECRET || bindings.SESSION_SECRET, candidate);
+		const confirmed = await confirmSubscriber(bindings.DB, tokenHash, Math.floor(Date.now() / 1000), country);
+		if (confirmed) {
+			confirmedSubscriber = confirmed;
+			state = 'confirmed';
+			break;
+		}
+	}
+	const subscriber = confirmedSubscriber;
+	if (subscriber) {
+		Astro.locals.cfContext.waitUntil((async () => {
+			const [settings, list] = await Promise.all([
+				getGlobalSettings(bindings.DB),
+				getWaitingListById(bindings.DB, subscriber.list_id),
+			]);
+			if (!settings || settings.notify_on_join !== 1 || !list) return;
+			await sendAdminJoinNotification(bindings, {
+				adminEmail: settings.admin_email,
+				subscriberEmail: subscriber.email,
+				listName: list.name,
+				listSlug: list.slug,
+			});
+		})().catch((notificationError) => {
+			console.error(JSON.stringify({
+				message: 'admin confirmation notification failed',
+				listId: subscriber.list_id,
+				error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+			}));
+		}));
+	}
+	if (state === 'invalid') {
+		console.warn(JSON.stringify({
+			message: 'confirmation rejected',
+			formTokenPresent: typeof formToken === 'string',
+			queryTokenPresent: typeof queryToken === 'string',
+			candidateCount: candidates.length,
+		}));
+	}
+}
+
+const stateLabel = {
+	ready: 'One last step',
+	confirmed: 'Confirmed',
+	invalid: 'Link unavailable',
+}[state];
+---
+
+<BaseLayout title="Confirm your waitlist place · waitinglists.dev" description="Confirm your email address." noindex>
+	<main class="public-action-shell">
+		<section class="public-action-card">
+			<div class="public-action-head">
+				<a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+				<span class="eyebrow public-action-status">{stateLabel}</span>
+			</div>
+			{state === 'ready' && (
+				<>
+					<h1>Confirm your email.</h1>
+					<p>Press the button to confirm that you asked to join this waitlist. We do not activate addresses from link previews or email scanners.</p>
+					<form method="post" action={`/confirm?token=${encodeURIComponent(token)}`}>
+						<input type="hidden" name="token" value={token} autocomplete="off" />
+						<button class="button button-dark" type="submit">Confirm my place</button>
+					</form>
+				</>
+			)}
+			{state === 'confirmed' && (
+				<>
+					<h1>You’re on the list.</h1>
+					<p>Your address is confirmed. You can close this page.</p>
+					<a class="button button-dark" href="/">Back to waitinglists.dev</a>
+				</>
+			)}
+			{state === 'invalid' && (
+				<>
+					<h1>This link is invalid or expired.</h1>
+					<p>Confirmation links expire after 24 hours. If you requested more than one email, open the newest message. Otherwise, submit the waitlist form again to receive a new link.</p>
+					<a class="button button-dark" href="/#join">Return to the form</a>
+				</>
+			)}
+		</section>
+	</main>
+</BaseLayout>

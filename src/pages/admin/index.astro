@@ -1,0 +1,90 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession } from '../../lib/auth';
+import { getEmailDeliveryAlerts, getWaitingLists } from '../../lib/db';
+import { getBindings } from '../../lib/runtime';
+
+export const prerender = false;
+
+const bindings = getBindings();
+const session = await getSession(bindings.DB, Astro.request, bindings.SESSION_SECRET);
+if (!session) return Astro.redirect('/login');
+Astro.locals.csrfToken = session.csrfToken;
+
+const [lists, deliveryAlerts] = await Promise.all([
+	getWaitingLists(bindings.DB),
+	getEmailDeliveryAlerts(bindings.DB),
+]);
+const totalSubscribers = lists.reduce((total, list) => total + Number(list.subscriber_count), 0);
+const created = Astro.url.searchParams.get('created') === '1';
+const error = Astro.url.searchParams.get('error');
+---
+
+<AdminLayout title="Waiting lists">
+	<div x-data="modal">
+		<div class="admin-title-row">
+			<div>
+				<span class="eyebrow">Dashboard</span>
+				<h1>Your waiting lists.</h1>
+				<p>A quiet overview of every launch and every email.</p>
+			</div>
+			<button class="button button-dark" type="button" x-on:click="show">+ New list</button>
+		</div>
+
+		{created && <div class="toast" role="status">Waiting list created. Its collection endpoint is ready.</div>}
+		{error === 'duplicate' && <div class="form-error" role="alert">That slug is already in use. Choose another one.</div>}
+		{error === 'invalid' && <div class="form-error" role="alert">Check the list name, slug, and allowed origins.</div>}
+		{deliveryAlerts.length > 0 && (
+			<section class="delivery-alert" role="alert" aria-labelledby="delivery-alert-title">
+				<div class="delivery-alert-head">
+					<div>
+						<span class="delivery-alert-kicker">Delivery alert</span>
+						<h2 id="delivery-alert-title">{deliveryAlerts.length} confirmation {deliveryAlerts.length === 1 ? 'email needs' : 'emails need'} attention.</h2>
+					</div>
+					<span class="delivery-alert-icon" aria-hidden="true">!</span>
+				</div>
+				<div class="delivery-alert-list">
+					{deliveryAlerts.map((alert) => (
+						<a href={`/admin/lists/${alert.list_slug}`}>
+							<span><strong>{alert.email}</strong><small>{alert.list_name}</small></span>
+							<span class="delivery-alert-reason"><strong>{alert.status}</strong><small>{alert.smtp_status_code ? `SMTP ${alert.smtp_status_code} · ` : ''}{alert.detail ?? 'No delivery detail was provided.'}</small></span>
+						</a>
+					))}
+				</div>
+			</section>
+		)}
+
+		<div class="stat-grid">
+			<div class="stat-card"><small>Confirmed subscribers</small><strong>{totalSubscribers.toLocaleString()}</strong></div>
+			<div class="stat-card secondary"><small>Active lists</small><strong>{lists.length}</strong></div>
+		</div>
+
+		<section class="panel">
+			<div class="panel-head"><h2>All waiting lists</h2><span class="mono">{lists.length} total</span></div>
+			{lists.length === 0 ? (
+				<div class="empty-state">Create your first waiting list to get an endpoint.</div>
+			) : (
+				lists.map((list) => (
+					<a class="list-row" href={`/admin/lists/${list.slug}`}>
+						<div class="list-name"><strong>{list.name}</strong><span>/api/subscribe/{list.slug}</span></div>
+						<div class="list-count"><strong>{Number(list.subscriber_count).toLocaleString()}</strong><span>confirmed · {Number(list.pending_count).toLocaleString()} pending</span></div>
+						<span class="row-arrow" aria-hidden="true">→</span>
+					</a>
+				))
+			)}
+		</section>
+
+		<div class="modal-backdrop" x-show="open" x-cloak x-on:click.self="hide">
+			<section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+				<div class="modal-head"><h2 id="modal-title">Create a waiting list</h2><button class="icon-button" type="button" aria-label="Close" x-on:click="hide">×</button></div>
+				<form action="/admin/api/lists" method="post">
+					<input type="hidden" name="csrf" value={session.csrfToken} />
+					<div class="field"><label for="name">List name</label><input id="name" name="name" minlength="2" maxlength="80" placeholder="My next product" required /></div>
+					<div class="field"><label for="slug">Endpoint slug</label><input id="slug" name="slug" minlength="2" maxlength="50" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="my-next-product" required /><span class="hint">Lowercase letters, numbers, and hyphens.</span></div>
+					<div class="field"><label for="allowed_origins">Allowed website origins</label><textarea id="allowed_origins" name="allowed_origins" maxlength="1000" placeholder="https://example.com, https://www.example.com"></textarea><span class="hint">Comma-separated origins. Use * only when submissions should be accepted from any website.</span></div>
+					<button class="button button-dark" type="submit">Create endpoint</button>
+				</form>
+			</section>
+		</div>
+	</div>
+</AdminLayout>

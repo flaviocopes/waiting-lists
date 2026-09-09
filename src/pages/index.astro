@@ -1,0 +1,355 @@
+---
+import { Image } from 'astro:assets';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import dashboardFormSetup from '../assets/dashboard/form-setup.png';
+import dashboardListSettings from '../assets/dashboard/list-settings.png';
+import dashboardLists from '../assets/dashboard/lists.png';
+import dashboardOverview from '../assets/dashboard/overview.png';
+
+const endpoint = `${Astro.url.origin}/api/subscribe/your-list`;
+---
+
+<BaseLayout
+	title="waitinglists.dev — One endpoint. Every waitlist."
+	description="Create focused email waiting lists, collect signups from any website, and manage everything in one private dashboard."
+>
+	<header class="site-header" x-data="menu">
+		<div class="container nav-shell">
+			<a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+			<nav class="nav-links" aria-label="Main navigation">
+				<a href="#agents">For agents</a>
+				<a href="#how-it-works">How it works</a>
+				<a href="#features">Features</a>
+				<a href="#security">Security</a>
+				<a href="/privacy">Privacy</a>
+				<a class="button button-dark button-small" href="#join">Join the waitlist</a>
+			</nav>
+			<button class="menu-button" type="button" aria-label="Toggle navigation" x-on:click="toggle">☰</button>
+			<nav class="mobile-nav" aria-label="Mobile navigation" x-show="open" x-cloak>
+				<a href="#agents" x-on:click="close">For agents</a>
+				<a href="#how-it-works" x-on:click="close">How it works</a>
+				<a href="#features" x-on:click="close">Features</a>
+				<a href="#security" x-on:click="close">Security</a>
+				<a href="/privacy" x-on:click="close">Privacy</a>
+				<a href="#join" x-on:click="close">Join the waitlist</a>
+			</nav>
+		</div>
+	</header>
+
+	<main>
+		<section class="hero">
+			<div class="container hero-grid">
+				<div>
+					<span class="eyebrow">Waitlists for AI agents</span>
+					<h1>Tell your agent.<br /><span>Launch your list.</span></h1>
+					<p class="hero-copy">
+						Give your coding agent one instruction. It creates the waiting list, connects your form,
+						checks signups, and exports confirmed subscribers when you ask. Prefer a screen? A private
+						dashboard makes every list easy to visualize and export as CSV.
+					</p>
+					<div class="hero-meta">
+						<span>Agent-operated</span><span>Visual dashboard</span><span>Self-hostable soon</span><span>Double opt-in</span>
+					</div>
+				</div>
+
+				<div class="signup-card" id="join">
+					<div class="window-bar"><span class="dots"><i></i><i></i><i></i></span><span>LIVE DOGFOOD DEMO</span></div>
+					<div class="signup-inner">
+						<span class="eyebrow">Get early access</span>
+						<h2>Join this product’s waitlist.</h2>
+						<p>This form posts to waitinglists.dev—the very product you’re signing up for.</p>
+						<div id="signup-state">
+							<form
+								id="waitlist-signup-form"
+								class="signup-form"
+								hx-post="/api/subscribe/waitinglists-dev"
+								hx-target="#signup-result"
+								hx-swap="innerHTML"
+								hx-disabled-elt="find button"
+							>
+								<label class="sr-only" for="email">Email address</label>
+								<input id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required />
+								<label class="consent-check">
+									<input type="checkbox" name="consent" value="yes" required />
+									<span>I want updates about waitinglists.dev and agree to the <a href="/privacy">privacy notice</a>. I can withdraw at any time.</span>
+								</label>
+								<button class="button" type="submit"><span class="button-label">Save my spot →</span></button>
+							</form>
+							<div id="signup-result" class="form-result" role="status" aria-live="polite"></div>
+						</div>
+						<template id="signup-confirmation-template">
+							<div class="signup-confirmation" role="status" aria-live="polite" tabindex="-1">
+								<span class="confirmation-mark" aria-hidden="true">✓</span>
+								<div>
+									<h3 data-confirmation-title>Thanks — you’re on the list.</h3>
+									<p data-confirmation-copy>If a confirmation step is needed, check your inbox to secure your spot.</p>
+								</div>
+							</div>
+						</template>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<div class="logo-strip">
+			<div class="container logo-strip-inner">
+				<span><strong>Built for</strong> tiny launches & serious products</span>
+				<span>Astro</span><span>Cloudflare Workers</span><span>D1</span><span>Your HTML form</span>
+			</div>
+		</div>
+
+		<section class="section agent-section" id="agents">
+			<div class="container">
+				<div class="agent-preview-label"><span>Included with the source</span> Private CLI and API access</div>
+				<div class="agent-home-grid">
+					<div class="agent-home-copy">
+						<span class="eyebrow">One instruction</span>
+						<h2>Your agent runs it. Your dashboard shows it.</h2>
+						<p>Add the instruction to <code>AGENTS.md</code>, or paste it into a single prompt. The agent receives a secret key once, stores it outside your repository, and uses the CLI from then on. Whenever you want a visual overview, the private dashboard shows list activity, subscribers, and delivery status.</p>
+						<ol class="agent-flow">
+							<li><strong>Ask once.</strong><span>Your agent creates and connects the list.</span></li>
+							<li><strong>Keep the key private.</strong><span>The CLI stores it in your user configuration, never in Git.</span></li>
+							<li><strong>Manage in plain language.</strong><span>“How many joined?” and “export confirmed subscribers” become CLI actions.</span></li>
+							<li><strong>Open the dashboard.</strong><span>Visualize every list and download confirmed subscribers as a CSV whenever you prefer.</span></li>
+						</ol>
+					</div>
+					<div class="agent-prompt-card">
+						<div class="code-box-head"><span>AGENTS.md</span><span>INCLUDED CLI</span></div>
+						<pre><code>## Waiting lists
+
+Use the included Waiting Lists CLI for this
+project's email waiting list.
+
+If this repository is not linked, run:
+
+<span class="accent">node /path/to/waiting-lists/cli/waitinglists.mjs init \
+  --name "My product" \
+  --origin "https://example.com"</span>
+
+Never commit credentials. Use --json
+when consuming command output. Export
+subscriber data only when I request it.</code></pre>
+						<div class="agent-prompt-footer">
+							<span>The CLI source and authenticated API are both included in the package.</span>
+							<a href="#how-it-works">See how it works →</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="section dashboard-preview-section" id="dashboard">
+			<div class="container">
+				<div class="section-head dashboard-preview-head">
+					<div><span class="eyebrow">Private dashboard</span></div>
+					<div>
+						<h2>See everything at a glance.</h2>
+						<p>Let your agent handle the work, then open a calm visual dashboard whenever you want to inspect lists, review subscribers, adjust the form setup, or export confirmed addresses as CSV.</p>
+					</div>
+				</div>
+
+				<figure class="dashboard-shot dashboard-shot-featured">
+					<Image
+						src={dashboardOverview}
+						alt="waitinglists.dev dashboard showing confirmed subscribers, active lists, and two waiting lists"
+						widths={[720, 1080, 1600]}
+						sizes="(max-width: 1200px) 92vw, 1160px"
+						format="webp"
+						loading="lazy"
+					/>
+					<figcaption><strong>Your launch overview</strong><span>Confirmed subscribers, active lists, and list health in one clean view.</span></figcaption>
+				</figure>
+
+				<div class="dashboard-detail-grid">
+					<figure class="dashboard-shot">
+						<Image
+							src={dashboardLists}
+							alt="waitinglists.dev visual list overview with confirmed and pending subscriber counts"
+							widths={[480, 720, 960]}
+							sizes="(max-width: 850px) 92vw, 34vw"
+							format="webp"
+							loading="lazy"
+						/>
+						<figcaption><strong>Visual list management</strong><span>Open any launch and see confirmed and pending counts immediately.</span></figcaption>
+					</figure>
+					<figure class="dashboard-shot">
+						<Image
+							src={dashboardFormSetup}
+							alt="waitinglists.dev form setup screen with an agent-ready implementation guide"
+							widths={[480, 720, 960]}
+							sizes="(max-width: 850px) 92vw, 34vw"
+							format="webp"
+							loading="lazy"
+						/>
+						<figcaption><strong>Agent-ready form setup</strong><span>Copy the exact contract, HTML, or JavaScript your project needs.</span></figcaption>
+					</figure>
+					<figure class="dashboard-shot">
+						<Image
+							src={dashboardListSettings}
+							alt="waitinglists.dev list settings screen for editing a list name, endpoint slug, and allowed origins"
+							widths={[480, 720, 960]}
+							sizes="(max-width: 850px) 92vw, 34vw"
+							format="webp"
+							loading="lazy"
+						/>
+						<figcaption><strong>Settings without guesswork</strong><span>Manage names, endpoint slugs, and trusted browser origins visually.</span></figcaption>
+					</figure>
+				</div>
+			</div>
+		</section>
+
+		<section class="section" id="how-it-works">
+			<div class="container">
+				<div class="section-head">
+					<div><span class="eyebrow">How it works</span></div>
+					<div>
+						<h2>From one prompt to collecting emails.</h2>
+						<p>The CLI gives agents a small, predictable interface. Underneath it is the same privacy-minded endpoint and focused private control room.</p>
+					</div>
+				</div>
+				<div class="steps-grid">
+					<article class="step-card"><span class="step-number">01</span><h3>Give the instruction</h3><p>Paste the prompt once or keep it in your project’s AGENTS.md file.</p></article>
+					<article class="step-card"><span class="step-number">02</span><h3>The agent connects it</h3><p>The CLI creates the list, restricts allowed origins, and returns the exact form integration.</p></article>
+					<article class="step-card"><span class="step-number">03</span><h3>Ask for outcomes</h3><p>Check counts, update settings, or export only confirmed subscribers without navigating a dashboard.</p></article>
+				</div>
+			</div>
+		</section>
+
+		<section class="section code-section">
+			<div class="container code-grid">
+				<div class="code-copy">
+					<span class="eyebrow">Just a form</span>
+					<h2>Your frontend stays yours.</h2>
+					<p>No embedded widget to restyle. Keep the form you already designed and change only where it sends the email.</p>
+				</div>
+				<div class="code-box">
+					<div class="code-box-head">index.html</div>
+					<pre><code>&lt;form method=<span class="accent">"post"</span>
+  action=<span class="accent">"{endpoint}"</span>&gt;
+  &lt;input
+    type=<span class="accent">"email"</span>
+    name=<span class="accent">"email"</span>
+    required
+  /&gt;
+  &lt;label&gt;
+    &lt;input type=<span class="accent">"checkbox"</span>
+      name=<span class="accent">"consent"</span> value=<span class="accent">"yes"</span> required /&gt;
+    I agree to join this waitlist.
+  &lt;/label&gt;
+  &lt;button&gt;Join the waitlist&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+				</div>
+			</div>
+		</section>
+
+		<section class="section" id="features">
+			<div class="container">
+				<div class="section-head">
+					<div><span class="eyebrow">No bloat</span></div>
+					<div><h2>The useful parts, and nothing pretending to be a CRM.</h2></div>
+				</div>
+				<div class="feature-grid">
+					<article class="feature"><span class="feature-icon">@</span><div><h3>Minimal by design</h3><p>The only subscriber-supplied personal data is an email. We add consent evidence and an approximate confirmation country without retaining the IP address.</p></div></article>
+					<article class="feature"><span class="feature-icon">↗</span><div><h3>Works across your sites</h3><p>Create a separate endpoint for every launch and restrict browser submissions to the origins you trust.</p></div></article>
+					<article class="feature"><span class="feature-icon">↓</span><div><h3>One-click CSV exports</h3><p>Download confirmed addresses with their consent metadata in universal, Sendy, Kit, or Mailchimp-ready CSV formats.</p></div></article>
+					<article class="feature"><span class="feature-icon">∞</span><div><h3>A clear visual dashboard</h3><p>See confirmed and pending counts at a glance, inspect subscribers and delivery status, and keep every launch organized.</p></div></article>
+				</div>
+			</div>
+		</section>
+
+		<section class="section self-host-section" id="self-host">
+			<div class="container self-host-card">
+				<div class="self-host-copy">
+					<div class="self-host-label"><span class="eyebrow">Yours to run</span><span class="preview-pill">Source package</span></div>
+					<h2>Self-host it.<br />Change anything.</h2>
+					<p>The source repository contains the complete source code, included CLI and private API, deployment instructions, and an agent-ready customization guide.</p>
+					<p>Hand the instructions to your coding agent and adapt the design, wording, workflow, exports, retention rules, or infrastructure in any way you want.</p>
+				</div>
+				<div class="self-host-parts" aria-label="Included with the self-hostable release">
+					<div><strong>01</strong><span><b>Complete source code</b>Own the application you deploy and the changes you make.</span></div>
+					<div><strong>02</strong><span><b>Deployment instructions</b>Run your own copy on your own Cloudflare account.</span></div>
+					<div><strong>03</strong><span><b>Instructions for agents</b>Describe the result you want and let your agent customize the software.</span></div>
+					<div><strong>04</strong><span><b>Command-line client</b>Create, inspect, connect, update, and export lists from a terminal.</span></div>
+				</div>
+			</div>
+		</section>
+
+		<section class="section" id="security">
+			<div class="container security-card">
+				<div><span class="eyebrow">Private means private</span><h2>Locked down where it matters.</h2></div>
+				<div class="security-list">
+					<div class="security-item"><strong>01</strong><div><strong>Server-enforced access</strong><span>Every dashboard page, write action, and export checks an active admin session on the server.</span></div></div>
+					<div class="security-item"><strong>02</strong><div><strong>Hardened sessions</strong><span>Short-lived, random session tokens are protected by secure, HTTP-only cookies and CSRF checks.</span></div></div>
+					<div class="security-item"><strong>03</strong><div><strong>Edge rate limiting</strong><span>Login and collection endpoints are throttled before abusive requests can become a problem.</span></div></div>
+					<div class="security-item"><strong>04</strong><div><strong>Privacy by default</strong><span>Double opt-in, self-service deletion, finite retention, and minimal collection are built in.</span></div></div>
+				</div>
+			</div>
+		</section>
+
+		<section class="final-cta">
+			<div class="container">
+				<span class="eyebrow">Coming soon</span>
+				<h2>Get the hosted service—or make it completely yours.</h2>
+				<a class="button button-dark" href="#join">Join the waitlist</a>
+			</div>
+		</section>
+	</main>
+
+	<footer class="site-footer">
+		<div class="container footer-inner">
+			<a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+			<div class="footer-links"><a href="/privacy">Privacy</a><span>Simple collection. Your data. No noise.</span></div>
+		</div>
+	</footer>
+	<script>
+		import htmx from 'htmx.org';
+
+		const signupStorageKey = 'waitinglists.dev:joined:waitinglists-dev';
+		const signupState = document.querySelector('#signup-state');
+		const signupForm = document.querySelector('#waitlist-signup-form');
+		const confirmationTemplate = document.querySelector<HTMLTemplateElement>('#signup-confirmation-template');
+
+		function hasJoinedWaitlist() {
+			try {
+				return localStorage.getItem(signupStorageKey) === 'true';
+			} catch {
+				return false;
+			}
+		}
+
+		function rememberWaitlistSignup() {
+			try {
+				localStorage.setItem(signupStorageKey, 'true');
+			} catch {
+				// The confirmation still works when browser storage is unavailable.
+			}
+		}
+
+		function showSignupConfirmation(alreadyJoined: boolean, moveFocus = false) {
+			if (!signupState || !confirmationTemplate) return;
+
+			signupState.replaceChildren(confirmationTemplate.content.cloneNode(true));
+			const confirmation = signupState.querySelector<HTMLElement>('.signup-confirmation');
+			if (alreadyJoined) {
+				const title = confirmation?.querySelector('[data-confirmation-title]');
+				const copy = confirmation?.querySelector('[data-confirmation-copy]');
+				if (title) title.textContent = 'You’ve already joined the waitlist.';
+				if (copy) copy.textContent = 'No need to sign up again. If you still need to confirm your email, check your inbox for the next step.';
+			}
+			if (moveFocus) confirmation?.focus();
+		}
+
+		if (hasJoinedWaitlist()) showSignupConfirmation(true);
+
+		document.body.addEventListener('htmx:afterRequest', (event) => {
+			const detail = (event as CustomEvent<{ elt?: Element; successful?: boolean }>).detail;
+			if (detail?.elt !== signupForm || !detail.successful) return;
+
+			rememberWaitlistSignup();
+			showSignupConfirmation(false, true);
+		});
+
+		htmx.config.allowEval = false;
+		htmx.process(document.body);
+	</script>
+</BaseLayout>

@@ -1,0 +1,74 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { deleteSubscriberById } from '../lib/db';
+import { getBindings } from '../lib/runtime';
+import { verifyRemoval } from '../lib/subscriber-tokens';
+
+export const prerender = false;
+
+const bindings = getBindings();
+let subscriberId = Astro.url.searchParams.get('subscriber') ?? '';
+let signature = Astro.url.searchParams.get('signature') ?? '';
+let state: 'ready' | 'removed' | 'invalid' =
+	/^[0-9a-f-]{36}$/.test(subscriberId) && await verifyRemoval(bindings.SUBSCRIBER_TOKEN_SECRET || bindings.SESSION_SECRET, subscriberId, signature)
+		? 'ready'
+		: 'invalid';
+
+if (Astro.request.method === 'POST') {
+	const origin = Astro.request.headers.get('origin');
+	if (origin && origin !== Astro.url.origin) {
+		state = 'invalid';
+	} else {
+		const form = await Astro.request.formData();
+		subscriberId = typeof form.get('subscriber') === 'string' ? String(form.get('subscriber')) : '';
+		signature = typeof form.get('signature') === 'string' ? String(form.get('signature')) : '';
+		if (await verifyRemoval(bindings.SUBSCRIBER_TOKEN_SECRET || bindings.SESSION_SECRET, subscriberId, signature)) {
+			await deleteSubscriberById(bindings.DB, subscriberId);
+			state = 'removed';
+		} else {
+			state = 'invalid';
+		}
+	}
+}
+
+const stateLabel = {
+	ready: 'Your data',
+	removed: 'Removed',
+	invalid: 'Link unavailable',
+}[state];
+---
+
+<BaseLayout title="Remove your waitlist data · waitinglists.dev" description="Remove your email from a waiting list." noindex>
+	<main class="public-action-shell">
+		<section class="public-action-card">
+			<div class="public-action-head">
+				<a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>waitinglists.dev</a>
+				<span class="eyebrow public-action-status">{stateLabel}</span>
+			</div>
+			{state === 'ready' && (
+				<>
+					<h1>Remove this address?</h1>
+					<p>This permanently removes the email address and its waitlist record. It cannot be undone.</p>
+					<form method="post" action="/remove">
+						<input type="hidden" name="subscriber" value={subscriberId} />
+						<input type="hidden" name="signature" value={signature} />
+						<button class="button button-danger" type="submit">Remove my data</button>
+					</form>
+				</>
+			)}
+			{state === 'removed' && (
+				<>
+					<h1>Your data is gone.</h1>
+					<p>The email address and its waitlist record were permanently deleted.</p>
+					<a class="button button-dark" href="/">Back to waitinglists.dev</a>
+				</>
+			)}
+			{state === 'invalid' && (
+				<>
+					<h1>This removal link is invalid.</h1>
+					<p>Contact <a href="mailto:privacy@your-domain.example">privacy@your-domain.example</a> if you need help exercising your data rights.</p>
+				</>
+			)}
+		</section>
+	</main>
+</BaseLayout>

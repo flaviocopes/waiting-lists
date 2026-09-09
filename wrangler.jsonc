@@ -1,0 +1,63 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "waiting-lists",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS"
+  },
+  "workers_dev": true,
+  "vars": {
+    "APP_URL": "http://localhost:4321",
+    "EMAIL_FROM": "waitlist@your-domain.example",
+    "CONSENT_VERSION": "replace-with-your-consent-version",
+    "TURNSTILE_SITE_KEY": "replace-with-your-turnstile-site-key",
+    "TURNSTILE_HOSTNAMES": "localhost,127.0.0.1"
+  },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["waitlist@your-domain.example"]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "waiting-lists",
+      "database_id": "replace-with-your-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "waiting-lists-email-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "retry_delay": 15
+      }
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "SUBSCRIBE_RATE_LIMIT",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "AUTH_RATE_LIMIT",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ],
+  "triggers": {
+    "crons": ["17 2 * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  }
+}

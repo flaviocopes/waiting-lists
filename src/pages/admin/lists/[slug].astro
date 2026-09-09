@@ -1,0 +1,235 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getSession } from '../../../lib/auth';
+import { getCountryName } from '../../../lib/country';
+import { CSV_EXPORT_FORMATS } from '../../../lib/csv-export';
+import { getSubscribers, getWaitingListBySlug } from '../../../lib/db';
+import { getBindings } from '../../../lib/runtime';
+
+export const prerender = false;
+
+const bindings = getBindings();
+const session = await getSession(bindings.DB, Astro.request, bindings.SESSION_SECRET);
+if (!session) return Astro.redirect('/login');
+Astro.locals.csrfToken = session.csrfToken;
+
+const list = await getWaitingListBySlug(bindings.DB, Astro.params.slug ?? '');
+if (!list) return new Response('Waiting list not found', { status: 404 });
+
+const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
+const pageSize = 100;
+const { subscribers, total, confirmedTotal, pendingTotal } = await getSubscribers(bindings.DB, list.id, page, pageSize);
+const failedDeliveries = subscribers.filter((subscriber) =>
+	['bounced', 'failed', 'rejected', 'complained'].includes(subscriber.email_delivery_status ?? '') &&
+	(subscriber.status === 'pending' || subscriber.email_delivery_status === 'complained'),
+);
+const totalPages = Math.max(1, Math.ceil(total / pageSize));
+const endpoint = `${Astro.url.origin}/api/subscribe/${list.slug}`;
+const deleted = Astro.url.searchParams.get('deleted') === '1';
+const resent = Astro.url.searchParams.get('resent') === '1';
+const resendFailed = Astro.url.searchParams.get('resend') === 'failed';
+const updated = Astro.url.searchParams.get('updated') === '1';
+const updateError = Astro.url.searchParams.get('update_error');
+const requestedTab = Astro.url.searchParams.get('tab');
+const activeTab = requestedTab === 'setup' || requestedTab === 'subscribers' || requestedTab === 'settings'
+	? requestedTab
+	: total === 0 ? 'setup' : 'subscribers';
+const htmlExample = `<form id="waitlist-form" method="post" action="${endpoint}">
+  <label>
+    Email
+    <input type="email" name="email" autocomplete="email" required>
+  </label>
+  <label>
+    <input type="checkbox" name="consent" value="yes" required>
+    I want to join the ${list.name} waiting list. Send me one email to confirm my address.
+    <a href="/privacy">Privacy notice</a>
+  </label>
+  <button type="submit">Join the waiting list</button>
+  <p id="waitlist-result" role="status" aria-live="polite"></p>
+</form>`;
+const javascriptExample = `const form = document.querySelector('#waitlist-form');
+const result = document.querySelector('#waitlist-result');
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const fields = new FormData(form);
+  const body = new URLSearchParams({
+    email: String(fields.get('email') ?? ''),
+    consent: fields.get('consent') === 'yes' ? 'yes' : '',
+  });
+
+  try {
+    const response = await fetch('${endpoint}', { method: 'POST', body });
+    const data = await response.json();
+    result.textContent = data.message;
+    if (response.ok) form.reset();
+  } catch {
+    result.textContent = 'Something went wrong. Please try again.';
+  }
+});`;
+const agentBrief = `Build an accessible email-only waiting-list form for “${list.name}”.
+
+POST to: ${endpoint}
+Allowed browser origin(s): ${list.allowed_origins}
+
+Requirements:
+- Send exactly two fields: email and consent. Do not collect or send names, phone numbers, tracking fields, or other personal data.
+- waitinglists.dev derives an approximate two-letter country code from Cloudflare only when the person confirms. Do not collect or send location data yourself, and mention this processing in the collecting site's privacy notice.
+- email must be a valid address. consent must be the boolean true, 1, or one of: "1", "yes", "on".
+- Show an unchecked required consent checkbox with a clear purpose and a link to the collecting site's privacy notice. Never bundle consent with unrelated terms.
+- Use application/x-www-form-urlencoded or application/json. For JSON, send exactly { "email": "person@example.com", "consent": true }.
+- Treat HTTP 202 as a saved request, not proof of email delivery, and display the returned message. The person remains pending until they use the 24-hour confirmation link.
+- Display returned error messages for HTTP 400, 403, 429, or 503 without exposing implementation details.
+- Keep admin credentials and API secrets out of browser code. This public collection endpoint does not need a secret.
+- If the browser origin is not in the allowed-origin list above, ask the waitinglists.dev administrator to add it before launch.
+- Do not send welcome or marketing email from this integration. Confirmed addresses are exported from the private admin area.
+
+Use the HTML and JavaScript examples on this page as the integration contract.`;
+---
+
+<AdminLayout title={list.name} description={`Manage ${list.name} subscribers.`}>
+	<a class="breadcrumb" href="/admin">← All waiting lists</a>
+	<div class="admin-title-row">
+		<div><span class="eyebrow">Waiting list</span><h1>{list.name}</h1><p>{confirmedTotal.toLocaleString()} confirmed · {pendingTotal.toLocaleString()} pending · Created {new Date(list.created_at).toLocaleDateString('en', { dateStyle: 'medium' })}</p></div>
+		<div class="detail-actions">
+			<form class="export-form" method="get" action={`/admin/lists/${list.slug}/export.csv`}>
+				<label class="export-field">
+					<span>Export for</span>
+					<select name="format">
+						{CSV_EXPORT_FORMATS.map((format) => <option value={format.value}>{format.label}</option>)}
+					</select>
+				</label>
+				<button class="button button-light" type="submit">Download CSV ↓</button>
+			</form>
+		</div>
+	</div>
+
+	{deleted && <div class="toast" role="status">Subscriber data permanently deleted.</div>}
+	{resent && <div class="toast" role="status">Confirmation email sent again with a new 24-hour link.</div>}
+	{updated && <div class="toast" role="status">Waiting list details updated.</div>}
+	{resendFailed && <div class="form-error" role="alert">The confirmation email could not be sent. Please try again.</div>}
+	{updateError === 'duplicate' && <div class="form-error" role="alert">That endpoint slug is already in use. Choose another one.</div>}
+	{updateError === 'invalid' && <div class="form-error" role="alert">Check the list name, endpoint slug, and allowed origins.</div>}
+	{failedDeliveries.length > 0 && (
+		<div class="delivery-alert compact" role="alert">
+			<strong>{failedDeliveries.length} {failedDeliveries.length === 1 ? 'confirmation email has' : 'confirmation emails have'} a delivery problem.</strong>
+			<span>See the delivery column below for the affected {failedDeliveries.length === 1 ? 'address' : 'addresses'} and Cloudflare’s latest result.</span>
+		</div>
+	)}
+	<div class="endpoint-box"><small>Collection endpoint</small><code>{endpoint}</code></div>
+
+	<nav class="detail-tabs" aria-label="Waiting list sections">
+		<a
+			class:list={['detail-tab', { active: activeTab === 'subscribers' }]}
+			href={`?tab=subscribers`}
+			aria-current={activeTab === 'subscribers' ? 'page' : undefined}
+		>
+			Subscribers <span>{total.toLocaleString()}</span>
+		</a>
+		<a
+			class:list={['detail-tab', { active: activeTab === 'setup' }]}
+			href={`?tab=setup`}
+			aria-current={activeTab === 'setup' ? 'page' : undefined}
+		>
+			Form setup
+		</a>
+		<a
+			class:list={['detail-tab', { active: activeTab === 'settings' }]}
+			href={`?tab=settings`}
+			aria-current={activeTab === 'settings' ? 'page' : undefined}
+		>
+			List settings
+		</a>
+	</nav>
+
+	{activeTab === 'settings' && <section class="panel settings-panel">
+		<div class="panel-head"><h2>Waiting list details</h2><span class="mono">EDIT</span></div>
+		<form class="settings-form" action={`/admin/api/lists/${list.id}`} method="post">
+			<input type="hidden" name="csrf" value={session.csrfToken} />
+			<div class="field">
+				<label for="settings-name">List name</label>
+				<input id="settings-name" name="name" value={list.name} minlength="2" maxlength="80" required />
+			</div>
+			<div class="field">
+				<label for="settings-slug">Endpoint slug</label>
+				<input id="settings-slug" name="slug" value={list.slug} minlength="2" maxlength="50" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required />
+				<span class="hint"><strong>Changing this breaks the current endpoint.</strong> Update every connected form to use the new URL after saving.</span>
+			</div>
+			<div class="field">
+				<label for="settings-allowed-origins">Allowed website origins</label>
+				<textarea id="settings-allowed-origins" name="allowed_origins" maxlength="1000">{list.allowed_origins}</textarea>
+				<span class="hint">Comma-separated origins. Use * only when submissions should be accepted from any website.</span>
+			</div>
+			<div class="settings-actions">
+				<button class="button button-dark" type="submit">Save changes</button>
+			</div>
+		</form>
+	</section>}
+
+	{activeTab === 'setup' && <section class="panel integration-panel" id="form-setup">
+		<div class="panel-head"><h2>Build a collection form</h2><span class="mono">AGENT-READY GUIDE</span></div>
+		<div class="integration-intro">
+			<div>
+				<h3>Give an agent the exact contract.</h3>
+				<p>The endpoint accepts an email address and explicit consent only. It submits the confirmation email automatically, tracks the actual delivery result, and stores the address as pending until the person confirms.</p>
+			</div>
+			<div class="origin-card"><small>Allowed browser origins</small><code>{list.allowed_origins}</code><span>Origins must match exactly, including <code>https://</code> and any <code>www</code> subdomain.</span></div>
+		</div>
+		<div class="integration-grid">
+			<article class="integration-code integration-wide">
+				<div class="integration-code-head"><strong>Copy for an agent</strong><span>Plain-language implementation brief</span></div>
+				<pre><code>{agentBrief}</code></pre>
+			</article>
+			<article class="integration-code">
+				<div class="integration-code-head"><strong>HTML</strong><span>Email + explicit consent only</span></div>
+				<pre><code>{htmlExample}</code></pre>
+			</article>
+			<article class="integration-code">
+				<div class="integration-code-head"><strong>JavaScript</strong><span>CORS-safe form submission</span></div>
+				<pre><code>{javascriptExample}</code></pre>
+			</article>
+		</div>
+		<div class="integration-note"><strong>GDPR checklist:</strong> use specific, unbundled consent; link a privacy notice that mentions the approximate confirmation country; keep the wording/version in source control; and update the purpose before reusing the form for a different product. Only confirmed addresses appear in CSV exports.</div>
+	</section>}
+
+	{activeTab === 'subscribers' && <section class="panel">
+		<div class="panel-head"><h2>Subscribers</h2></div>
+		{subscribers.length === 0 ? (
+			<div class="empty-state">No signups yet. Connect a form to the endpoint above.</div>
+		) : (
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Email</th><th>Signup</th><th>Country</th><th>Confirmation email</th><th>Consent recorded</th><th>Action</th></tr></thead>
+					<tbody>{subscribers.map((subscriber) => <tr>
+						<td>{subscriber.email}</td>
+						<td><span class:list={['status-pill', subscriber.status]}>{subscriber.status}</span></td>
+						<td><span title="Approximate country derived from the confirmation request">{getCountryName(subscriber.confirmed_country) ?? '—'}</span></td>
+						<td>
+							{subscriber.email_delivery_status ? (
+								<span
+									class:list={['delivery-pill', subscriber.email_delivery_status]}
+									title={subscriber.email_delivery_detail ?? undefined}
+								>{subscriber.email_delivery_status}</span>
+							) : <span class="delivery-untracked">Not tracked</span>}
+							{subscriber.email_delivery_detail && <small class="delivery-detail">{subscriber.email_delivery_detail}</small>}
+						</td>
+						<td>{subscriber.consent_at ? new Date(subscriber.consent_at).toLocaleString() : 'Legacy record'}</td>
+						<td><div class="subscriber-actions">
+							{subscriber.status === 'pending' && <form method="post" action={`/admin/api/subscribers/${subscriber.id}/resend`}>
+								<input type="hidden" name="csrf" value={session.csrfToken} />
+								<button class="text-action" type="submit">Resend confirmation</button>
+							</form>}
+							<form method="post" action={`/admin/api/subscribers/${subscriber.id}`}>
+								<input type="hidden" name="csrf" value={session.csrfToken} />
+								<button class="text-danger" type="submit">Delete</button>
+							</form>
+						</div></td>
+					</tr>)}</tbody>
+				</table>
+			</div>
+		)}
+		{totalPages > 1 && (
+			<div class="pagination"><span>Page {page} of {totalPages}</span><div class="pagination-links">{page > 1 && <a class="button button-quiet button-small" href={`?tab=subscribers&page=${page - 1}`}>Previous</a>}{page < totalPages && <a class="button button-quiet button-small" href={`?tab=subscribers&page=${page + 1}`}>Next</a>}</div></div>
+		)}
+	</section>}
+</AdminLayout>

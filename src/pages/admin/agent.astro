@@ -1,0 +1,124 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { createApiKey, getApiKeys, revokeApiKey } from '../../lib/api-keys';
+import { getSession, verifyCsrf } from '../../lib/auth';
+import { getBindings } from '../../lib/runtime';
+import { parseApiKeyName } from '../../lib/validation';
+
+export const prerender = false;
+
+const bindings = getBindings();
+const session = await getSession(bindings.DB, Astro.request, bindings.SESSION_SECRET);
+if (!session) return Astro.redirect('/login');
+Astro.locals.csrfToken = session.csrfToken;
+
+let createdKey: Awaited<ReturnType<typeof createApiKey>> | null = null;
+let formError: string | null = null;
+let revoked = Astro.url.searchParams.get('revoked') === '1';
+
+if (Astro.request.method === 'POST') {
+	if (!(await verifyCsrf(Astro.request.clone(), session.csrfToken))) {
+		return new Response('Forbidden', { status: 403 });
+	}
+	const form = await Astro.request.formData();
+	const action = form.get('action');
+	if (action === 'create') {
+		const name = parseApiKeyName(form.get('name'));
+		if (!name) formError = 'Give the key a short, recognizable name.';
+		else createdKey = await createApiKey(bindings.DB, name);
+	} else if (action === 'revoke') {
+		const id = form.get('id');
+		if (typeof id !== 'string' || !(await revokeApiKey(bindings.DB, id))) {
+			formError = 'That key could not be revoked.';
+		} else revoked = true;
+	} else {
+		formError = 'Unsupported action.';
+	}
+}
+
+const keys = await getApiKeys(bindings.DB);
+---
+
+<AdminLayout title="Agent access" description="Create and revoke private API keys for waitinglists.dev agent access.">
+	<a class="breadcrumb" href="/admin">← Back to waiting lists</a>
+	<div class="admin-title-row">
+		<div>
+			<span class="eyebrow">Included command-line client</span>
+			<h1>Agent access.</h1>
+			<p>Create a secret key for the included CLI and authenticated JSON API.</p>
+		</div>
+	</div>
+
+	{revoked && <div class="toast" role="status">API key revoked.</div>}
+	{formError && <div class="form-error" role="alert">{formError}</div>}
+	{createdKey && (
+		<section class="secret-card" aria-labelledby="new-key-title">
+			<span class="eyebrow">Shown once</span>
+			<h2 id="new-key-title">Copy this secret key now.</h2>
+			<p>It is stored only as a SHA-256 hash and cannot be shown again. Never commit it to a repository or paste it into a public prompt.</p>
+			<code>{createdKey.token}</code>
+		</section>
+	)}
+
+	<div class="agent-admin-grid">
+		<section class="panel agent-setup-panel">
+			<div class="panel-head"><h2>Create a private key</h2><span class="status-pill pending">Private access</span></div>
+			<form method="post" class="settings-form">
+				<input type="hidden" name="csrf" value={session.csrfToken} />
+				<input type="hidden" name="action" value="create" />
+				<div class="field">
+					<label for="key-name">Key name</label>
+					<input id="key-name" name="name" minlength="2" maxlength="80" placeholder="Codex on my laptop" required />
+					<span class="hint">Use a different key for every machine or agent environment.</span>
+				</div>
+				<button class="button button-dark" type="submit">Create secret key</button>
+			</form>
+		</section>
+
+		<section class="panel agent-setup-panel">
+			<div class="panel-head"><h2>CLI setup</h2><span class="mono">included in source</span></div>
+			<div class="agent-command-list">
+				<p>From this repository, configure the CLI with the one-time key:</p>
+				<pre><code>pbpaste | npm run waitinglists -- configure --key-stdin</code></pre>
+				<p>Then create and link a waiting list to the current project:</p>
+				<pre><code>npm run waitinglists -- init \
+  --name "My product" \
+  --origin "https://example.com"</code></pre>
+				<p class="hint">The secret stays in your user configuration directory. The project file contains only non-secret IDs.</p>
+			</div>
+		</section>
+	</div>
+
+	<section class="panel agent-keys-panel">
+		<div class="panel-head"><h2>API keys</h2><span class="mono">{keys.length} total</span></div>
+		{keys.length === 0 ? (
+			<div class="empty-state">No API keys yet.</div>
+		) : (
+			<div class="table-wrap">
+				<table>
+					<thead><tr><th>Name</th><th>Key</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+					<tbody>
+						{keys.map((key) => (
+							<tr>
+								<td><strong>{key.name}</strong></td>
+								<td><code>{key.token_prefix}</code></td>
+								<td>{key.last_used_at ?? 'Never'}</td>
+								<td><span class:list={['status-pill', key.revoked_at ? 'pending' : 'confirmed']}>{key.revoked_at ? 'Revoked' : 'Active'}</span></td>
+								<td>
+									{!key.revoked_at && (
+										<form method="post">
+											<input type="hidden" name="csrf" value={session.csrfToken} />
+											<input type="hidden" name="action" value="revoke" />
+											<input type="hidden" name="id" value={key.id} />
+											<button class="text-danger" type="submit">Revoke</button>
+										</form>
+									)}
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		)}
+	</section>
+</AdminLayout>

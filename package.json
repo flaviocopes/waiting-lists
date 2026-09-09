@@ -1,0 +1,41 @@
+{
+  "name": "waiting-lists",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "vitest run",
+    "cf:types": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply waiting-lists --local",
+    "db:migrate:remote": "wrangler d1 migrations apply waiting-lists --remote",
+    "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json",
+    "waitinglists": "node ./cli/waitinglists.mjs",
+    "astro": "astro"
+  },
+  "bin": {
+    "waitinglists": "./cli/waitinglists.mjs"
+  },
+  "dependencies": {
+    "@alpinejs/csp": "^3.15.12",
+    "@astrojs/cloudflare": "^14.1.7",
+    "alpinejs": "^3.15.12",
+    "astro": "^7.1.6",
+    "htmx.org": "^2.0.10",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@cloudflare/workers-types": "^5.20260730.1",
+    "@types/node": "^26.1.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.115.0"
+  }
+}
